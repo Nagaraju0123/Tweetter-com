@@ -1,0 +1,33 @@
+post http://localhost:3000/register
+content-type: application/json
+
+ { 
+  "username": "adam_richard",
+  "password": "richard_567"
+}
+####
+get http://localhost:3000/user/following/
+Authorization:  bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImFkYW1fcmljaGFyZCIsImlhdCI6MTY5NTcxMTgwNX0.RnkXhl7TYYyiwztTSvhjRbX_C0G2LtljKtNzdTkUeXs
+
+
+
+### 
+post http://localhost:3000/register/
+content-type: application/json
+
+{ 
+  "username": "adam_richard",
+  "password": "richard_567",
+  "name": "Adam Richard",
+  "gender": "male"
+}
+
+### 
+post http://localhost:3000/login/
+content-type: application/json 
+
+{
+    
+  "username": "adam_richard",
+  "password": "richard_567"
+}

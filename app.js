@@ -52,8 +52,11 @@ function authenticateToken(request, response, next) {
   }
 }
 
+const validatePassword = (password) => {
+  return password.length > 4;
+};
 app.post("/register", async (request, response) => {
-  const { username, name, password, gender, location } = request.body;
+  const { username, name, password, gender } = request.body;
   const hashedPassword = await bcrypt.hash(password, 10);
   const selectUserQuery = `SELECT * FROM user WHERE username = '${username}';`;
   const databaseUser = await database.get(selectUserQuery);
@@ -61,14 +64,13 @@ app.post("/register", async (request, response) => {
   if (databaseUser === undefined) {
     const createUserQuery = `
      INSERT INTO
-      user (username, name, password, gender, location)
+      user (username, name, password, gender)
      VALUES
       (
-       '${username}',
+       '${username}', 
        '${name}',
        '${hashedPassword}',
-       '${gender}',
-       '${location}'  
+       '${gender}'
       );`;
     if (validatePassword(password)) {
       await database.run(createUserQuery);
@@ -108,25 +110,50 @@ app.post("/login/", async (request, response) => {
   }
 });
 
+const convertUserTweetDbObjectToResponseObject = (dbOject) => {
+  return {
+    username: dbOject.username,
+    tweet: dbOject.tweet,
+    dateTime: dbOject.date_time,
+  };
+};
+
 app.get("/user/tweets/feed/", authenticateToken, async (request, response) => {
-  const getStatesQuery = `
+  const getTweetFeedQuery = `
     SELECT
       *
     FROM
-      user;`;
-  const UserArray = await database.all(getStatesQuery);
-  response.send(UserArray);
+      user
+    NATURAL JOIN 
+       tweet
+    ORDER BY 
+    OFFSET ${4}, LIMIT ${4};`;
+  const UserTweetArray = await database.all(getTweetFeedQuery);
+  response.send(
+    UserTweetArray.map((eachTweet) =>
+      convertUserTweetDbObjectToResponseObject(eachTweet)
+    )
+  );
 });
 
+const convertTweetUserDbObjectToResponseObject = (dbObject) => {
+  return {
+    name: dbObject.name,
+  };
+};
+
 app.get("/user/following/", authenticateToken, async (request, response) => {
-  const { stateId } = request.params;
-  const getStateQuery = `
+  const getUserFollowQuery = `
     SELECT 
       *
     FROM 
-      user ;`;
-  const tweet = await database.get(getStateQuery);
-  response.send(tweet);
+      user 
+    NATURAL JOIN 
+    follower;`;
+  const tweetName = await database.all(getUserFollowQuery);
+  response.send(
+    tweetName.map((names) => convertTweetUserDbObjectToResponseObject(names))
+  );
 });
 
 app.get("/user/followers/", authenticateToken, async (request, response) => {
@@ -138,33 +165,66 @@ app.get("/user/followers/", authenticateToken, async (request, response) => {
      user
     WHERE
       tweet_id = ${tweetId};`;
-  const tweetQuery = await database.get(getTweetQuery);
-  response.send(tweetQuery);
+  const tweetFollower = await database.get(getTweetQuery);
+  response.send(
+    tweetFollower.map((eachFollower) =>
+      convertUserTweetDbObjectToResponseObject(eachFollower)
+    )
+  );
 });
+
+const convertTweetLikesDbObjectToResponseObject = (dbObject) => {
+  return {
+    like: dbObject.name,
+  };
+};
 
 app.get(
   "/tweets/:tweetId/likes/",
   authenticateToken,
   async (request, response) => {
     const { tweetId } = request.params;
-    const getDistrictsQuery = `
+    const getTweetQuery = `
     SELECT
       *
     FROM
      tweet
+    NATURAL JOIN
+     likes
     WHERE
       tweet_id = ${tweetId};`;
-    const district = await database.get(getDistrictsQuery);
-    response.send(convertDistrictDbObjectToResponseObject(district));
+    const tweetLikes = await database.get(getTweetQuery);
+    const res = response.send(
+      tweetLikes.map((eachLike) =>
+        convertTweetLikesDbObjectToResponseObject(eachLike)
+      )
+    );
+    if (res !== undefined) {
+      response.send(res);
+    } else {
+      response.status(401);
+      response.send("Invalid Request");
+    }
   }
 );
+
+const convertTweetReplytDbObjectToResponseObject = (dbObject) => {
+  return {
+    replies: [
+      {
+        name: dbObject.name,
+        reply: dbObject.reply,
+      },
+    ],
+  };
+};
 
 app.get(
   "/tweets/:tweetId/replies/",
   authenticateToken,
   async (request, response) => {
     const { tweetId } = request.params;
-    const getDistrictsQuery = `
+    const getTweetReplyQuery = `
     SELECT
       *
     FROM
@@ -172,22 +232,44 @@ app.get(
     NATURAL JOIN reply
     WHERE
       tweet_id = ${tweetId};`;
-    const district = await database.get(getDistrictsQuery);
-    response.send(convertDistrictDbObjectToResponseObject(district));
+    const tweetReply = await database.get(getTweetReplyQuery);
+    const res = response.send(
+      tweetReply.map((eachReply) =>
+        convertTweetReplytDbObjectToResponseObject(eachReply)
+      )
+    );
+    if (res === undefined) {
+      response.status(401);
+      response.send("Inavlid Request");
+    } else {
+      response.send(res);
+    }
   }
 );
 
+const convertTweetUsersDbObjectToResponseObject = (dbObject) => {
+  return {
+    tweet: dbObject.tweet,
+    likes: dbObject.like_id,
+    replies: dbObject.replies_id,
+    dateTime: dbOject.date_time,
+  };
+};
+
 app.post("/user/tweets/", authenticateToken, async (request, response) => {
-  const { tweetId } = request.params;
-  const getDistrictsQuery = `
+  const getUserTweetsQuery = `
     SELECT
       *
     FROM
      user
-    WHERE
-     tweet_id = ${tweetId};`;
-  const district = await database.get(getDistrictsQuery);
-  response.send(convertDistrictDbObjectToResponseObject(district));
+    NATURAL JOIN 
+    tweet;`;
+  const userTweet = await database.get(getUserTweetQuery);
+  response.send(
+    userTweet.map((eachUser) =>
+      convertTweetUsersDbObjectToResponseObject(eachUser)
+    )
+  );
 });
 
 app.get("/user/tweets/", authenticateToken, async (request, response) => {
@@ -203,14 +285,14 @@ app.get("/user/tweets/", authenticateToken, async (request, response) => {
   response.send(convertDistrictDbObjectToResponseObject(district));
 });
 
-app.get("/tweets/:tweetId/", authenticateToken, async (request, response) => {
+app.post("/tweets/:tweetId/", authenticateToken, async (request, response) => {
   const { tweetId } = request.params;
-  const postDistrictQuery = `
+  const postTweetQuery = `
   INSERT INTO
     tweet (tweet)
   VALUES
     (${tweetId};`;
-  await database.run(postDistrictQuery);
+  await database.run(postTweetQuery);
   response.send("Tweet Successfully Added");
 });
 
@@ -221,12 +303,18 @@ app.delete(
     const { tweetId } = request.params;
     const deleteDistrictQuery = `
   DELETE FROM
-    district
+    tweet
   WHERE
     tweet_id = ${tweetId} 
   `;
     await database.run(deleteDistrictQuery);
-    response.send("Tweet Removed");
+    const data = response.send("Tweet Removed");
+    if (data === undefined) {
+      response.send("Tweet Removed");
+    } else {
+      response.status(401);
+      response.send("Inavlid Request");
+    }
   }
 );
 
