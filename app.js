@@ -110,11 +110,11 @@ app.post("/login/", async (request, response) => {
   }
 });
 
-const convertUserTweetDbObjectToResponseObject = (dbOject) => {
+const convertUserTweetDbObjectToResponseObject = (dbObject) => {
   return {
-    username: dbOject.username,
-    tweet: dbOject.tweet,
-    dateTime: dbOject.date_time,
+    username: dbObject.username,
+    tweet: dbObject.tweet,
+    dateTime: dbObject.date_time,
   };
 };
 
@@ -127,7 +127,7 @@ app.get("/user/tweets/feed/", authenticateToken, async (request, response) => {
     NATURAL JOIN 
        tweet
     ORDER BY 
-    OFFSET ${4}, LIMIT ${4};`;
+    "LIMIT 4 OFFSET 4";`;
   const UserTweetArray = await database.all(getTweetFeedQuery);
   response.send(
     UserTweetArray.map((eachTweet) =>
@@ -194,13 +194,12 @@ app.get(
     WHERE
       tweet_id = ${tweetId};`;
     const tweetLikes = await database.get(getTweetQuery);
-    const res = response.send(
-      tweetLikes.map((eachLike) =>
-        convertTweetLikesDbObjectToResponseObject(eachLike)
-      )
-    );
     if (res !== undefined) {
-      response.send(res);
+      response.send(
+        tweetLikes.map((eachLike) =>
+          convertTweetLikesDbObjectToResponseObject(eachLike)
+        )
+      );
     } else {
       response.status(401);
       response.send("Invalid Request");
@@ -233,16 +232,15 @@ app.get(
     WHERE
       tweet_id = ${tweetId};`;
     const tweetReply = await database.get(getTweetReplyQuery);
-    const res = response.send(
-      tweetReply.map((eachReply) =>
-        convertTweetReplytDbObjectToResponseObject(eachReply)
-      )
-    );
-    if (res === undefined) {
+    if (tweetReply === undefined) {
       response.status(401);
       response.send("Inavlid Request");
     } else {
-      response.send(res);
+      response.send(
+        tweetReply.map((eachReply) =>
+          convertTweetReplytDbObjectToResponseObject(eachReply)
+        )
+      );
     }
   }
 );
@@ -257,43 +255,46 @@ const convertTweetUsersDbObjectToResponseObject = (dbObject) => {
 };
 
 app.post("/user/tweets/", authenticateToken, async (request, response) => {
+  const { tweet } = request.body;
   const getUserTweetsQuery = `
-    SELECT
-      *
-    FROM
-     user
-    NATURAL JOIN 
-    tweet;`;
+   INSERT INTO 
+      tweet(tweet)
+    VALUES 
+    (${tweet});`;
   const userTweet = await database.get(getUserTweetQuery);
-  response.send(
-    userTweet.map((eachUser) =>
-      convertTweetUsersDbObjectToResponseObject(eachUser)
-    )
-  );
+  response.send("Created a Tweet");
 });
 
 app.get("/user/tweets/", authenticateToken, async (request, response) => {
   const { tweetId } = request.params;
-  const getDistrictsQuery = `
+  const getUserTweetQuery = `
     SELECT
       *
     FROM
-     district
-    WHERE
-      tweet_id = ${tweetId};`;
-  const district = await database.get(getDistrictsQuery);
-  response.send(convertDistrictDbObjectToResponseObject(district));
+     user;`;
+  const userTweet = await database.get(getUserTweetQuery);
+  response.send(
+    userTweet.map((eachTweet) =>
+      convertTweetUsersDbObjectToResponseObject(eachTweet)
+    )
+  );
 });
 
-app.post("/tweets/:tweetId/", authenticateToken, async (request, response) => {
+app.get("/tweets/:tweetId/", authenticateToken, async (request, response) => {
   const { tweetId } = request.params;
-  const postTweetQuery = `
-  INSERT INTO
-    tweet (tweet)
-  VALUES
-    (${tweetId};`;
-  await database.run(postTweetQuery);
-  response.send("Tweet Successfully Added");
+  const getTweetQuery = `
+     SELECT * FROM tweet WHERE tweet_id = ${tweetId};`;
+  const tweetArray = await database.run(getTweetQuery);
+  if (result === undefined) {
+    response.send(
+      tweetArray.map((eachTweet) =>
+        convertTweetUsersDbObjectToResponseObject(eachTweet)
+      )
+    );
+  } else {
+    response.status(401);
+    response.send("Invalid Request");
+  }
 });
 
 app.delete(
@@ -307,13 +308,12 @@ app.delete(
   WHERE
     tweet_id = ${tweetId} 
   `;
-    await database.run(deleteDistrictQuery);
-    const data = response.send("Tweet Removed");
+    const data = await database.run(deleteDistrictQuery);
     if (data === undefined) {
       response.send("Tweet Removed");
     } else {
       response.status(401);
-      response.send("Inavlid Request");
+      response.send("Invalid Request");
     }
   }
 );
